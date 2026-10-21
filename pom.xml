@@ -142,4 +142,54 @@
         </plugins>
     </build>
 
+
+    <profiles>
+        <!-- Builds the image and pushes it to Docker Hub (no local Docker daemon needed).
+             Credentials come from env vars DOCKERHUB_USERNAME / DOCKERHUB_PASSWORD; never hard-code them. -->
+        <profile>
+            <id>docker</id>
+            <properties>
+                <docker.repo>rvin2026</docker.repo>
+                <docker.base-image>eclipse-temurin:25-jre</docker.base-image>
+            </properties>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.google.cloud.tools</groupId>
+                        <artifactId>jib-maven-plugin</artifactId>
+                        <version>3.5.2</version>
+                        <configuration>
+                            <from>
+                                <image>${docker.base-image}</image>
+                            </from>
+                            <to>
+                                <image>docker.io/${docker.repo}/${project.artifactId}:${project.version}</image>
+                                <tags>
+                                    <tag>latest</tag>
+                                </tags>
+                                <auth>
+                                    <username>${env.DOCKERHUB_USERNAME}</username>
+                                    <password>${env.DOCKERHUB_PASSWORD}</password>
+                                </auth>
+                            </to>
+                            <container>
+                                <ports>
+                                    <port>8089</port>
+                                </ports>
+                            </container>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>push-image</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>build</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
