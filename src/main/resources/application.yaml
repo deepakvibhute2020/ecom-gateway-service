@@ -1,5 +1,5 @@
 server:
-  port: 8090
+  port: 8089
 
 spring:
   application:
@@ -15,6 +15,13 @@ spring:
               uri: lb://ecom-userauth-service
               predicates:
                 - Path=/api/auth/**
+            # Serves masterdata's OpenAPI document so the gateway Swagger UI can list it (auth service is excluded).
+            - id: ecom-masterdata-api-docs
+              uri: lb://ecom-masterdata-service
+              predicates:
+                - Path=/docs/masterdata/v3/api-docs
+              filters:
+                - RewritePath=/docs/masterdata/v3/api-docs, /v3/api-docs
             # Every other /api call is JWT-validated by the gateway (see SecurityConfig) before routing.
             - id: ecom-masterdata-service
               uri: lb://ecom-masterdata-service
@@ -30,6 +37,14 @@ app:
     # Must be provided via a Kubernetes Secret; never commit a real value.
     secret: ${JWT_SECRET}
     issuer: ecom-userauth-service
+
+springdoc:
+  # Each entry is a downstream service spec routed above.
+  swagger-ui:
+    urls:
+      - name: ecom-masterdata-service
+        url: /docs/masterdata/v3/api-docs
+    path: /swagger-ui.html
 
 management:
   endpoints:

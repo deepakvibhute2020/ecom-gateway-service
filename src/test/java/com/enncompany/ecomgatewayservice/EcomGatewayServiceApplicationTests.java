@@ -32,7 +32,7 @@ class EcomGatewayServiceApplicationTests {
   private static final String SECRET = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
   private static final String ISSUER = "ecom-userauth-service";
   private static final HttpServer AUTH_SERVICE = fake("/api/auth", false);
-  private static final HttpServer MASTERDATA_SERVICE = fake("/api", true);
+  private static final HttpServer MASTERDATA_SERVICE = fake("/", true);
 
   @Autowired private WebTestClient client;
 
@@ -166,6 +166,24 @@ class EcomGatewayServiceApplicationTests {
   void wrongSignatureRejected() {
     String other = Base64.getEncoder().encodeToString("another-secret-another-secret-123".getBytes());
     get(token(ISSUER, Instant.now().plusSeconds(600), other)).expectStatus().isUnauthorized();
+  }
+
+  @Test
+  void swaggerUiIsPublic() {
+    client.get().uri("/swagger-ui.html").exchange().expectStatus().is3xxRedirection();
+  }
+
+  @Test
+  void masterdataApiDocsAreRoutedWithoutToken() {
+    client
+        .get()
+        .uri("/docs/masterdata/v3/api-docs")
+        .exchange()
+        .expectStatus()
+        .isOk()
+        .expectBody()
+        .jsonPath("$.id")
+        .exists();
   }
 
   @Test

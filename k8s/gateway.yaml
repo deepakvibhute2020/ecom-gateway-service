@@ -17,7 +17,7 @@ spec:
         - name: ecom-gateway-service
           image: ecom-gateway-service:0.0.1-SNAPSHOT
           ports:
-            - containerPort: 8080
+            - containerPort: 8089
           env:
             # Base64 secret; must equal the auth service's app.jwt.secret.
             - name: JWT_SECRET
@@ -28,11 +28,11 @@ spec:
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
-              port: 8080
+              port: 8089
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness
-              port: 8080
+              port: 8089
 ---
 # Lets lb://<service-name> resolve Kubernetes Services in this namespace.
 apiVersion: v1
@@ -71,6 +71,6 @@ spec:
     app: ecom-gateway-service
   ports:
     - port: 80
-      targetPort: 8080
+      targetPort: 8089
 # Share the auth service's Base64 JWT secret: kubectl create secret generic ecom-jwt --from-literal=secret="<same Base64 value as auth service JWT_SECRET>"
 # The masterdata and userauth Services must be named ecom-masterdata-service / ecom-userauth-service and be ClusterIP only (not public).
