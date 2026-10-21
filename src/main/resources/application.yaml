@@ -1,0 +1,38 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: ecom-gateway-service
+  cloud:
+    gateway:
+      server:
+        webflux:
+          routes:
+            # lb:// resolves the logical service name via the Kubernetes service registry.
+            - id: ecom-masterdata-service
+              uri: lb://ecom-masterdata-service
+              predicates:
+                - Path=/api/**
+    kubernetes:
+      loadbalancer:
+        mode: SERVICE
+
+app:
+  jwt:
+    # Must be provided (>= 32 bytes) via a Kubernetes Secret; never commit a real value.
+    secret: ${JWT_SECRET}
+    issuer: ecom-gateway-service
+    ttl: 15m
+  user-service:
+    url: http://ecom-masterdata-service
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
