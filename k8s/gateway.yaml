@@ -19,6 +19,7 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            # Base64 secret; must equal the auth service's app.jwt.secret.
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
@@ -71,5 +72,5 @@ spec:
   ports:
     - port: 80
       targetPort: 8080
-# kubectl create secret generic ecom-jwt --from-literal=secret="$(openssl rand -base64 48)"
-# The masterdata Service must be named ecom-masterdata-service and be ClusterIP only (not public).
+# Share the auth service's Base64 JWT secret: kubectl create secret generic ecom-jwt --from-literal=secret="<same Base64 value as auth service JWT_SECRET>"
+# The masterdata and userauth Services must be named ecom-masterdata-service / ecom-userauth-service and be ClusterIP only (not public).

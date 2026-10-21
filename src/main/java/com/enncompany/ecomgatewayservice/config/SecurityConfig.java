@@ -1,5 +1,6 @@
 package com.enncompany.ecomgatewayservice.config;
 
+import com.enncompany.ecomgatewayservice.auth.Roles;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,12 +19,12 @@ public class SecurityConfig {
   public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
     JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(
-        jwt -> List.of(new SimpleGrantedAuthority("ROLE_" + jwt.getClaimAsString("role"))));
+        jwt -> List.of(new SimpleGrantedAuthority("ROLE_" + Roles.of(jwt))));
 
     return http.csrf(ServerHttpSecurity.CsrfSpec::disable)
         .authorizeExchange(
             ex ->
-                ex.pathMatchers("/auth/login", "/actuator/health/**")
+                ex.pathMatchers("/api/auth/login", "/actuator/health/**")
                     .permitAll()
                     .anyExchange()
                     .authenticated())

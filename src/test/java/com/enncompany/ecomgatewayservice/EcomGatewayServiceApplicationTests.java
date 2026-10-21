@@ -2,44 +2,57 @@ package com.enncompany.ecomgatewayservice;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.sun.net.httpserver.HttpServer;
 import java.net.InetSocketAddress;
-import java.nio.charset.StandardCharsets;
-import java.util.Map;
+import java.time.Instant;
+import java.util.Base64;
+import javax.crypto.spec.SecretKeySpec;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
-import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 
 @SpringBootTest(
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-    properties = "app.jwt.secret=0123456789abcdef0123456789abcdef")
+    properties =
+        "app.jwt.secret=MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
 @AutoConfigureWebTestClient
 class EcomGatewayServiceApplicationTests {
 
-  private static final HttpServer USER_SERVICE = startFakeUserService();
+  private static final String SECRET = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
+  private static final String ISSUER = "ecom-userauth-service";
+  private static final HttpServer AUTH_SERVICE = fake("/api/auth", false);
+  private static final HttpServer MASTERDATA_SERVICE = fake("/api", true);
 
   @Autowired private WebTestClient client;
 
-  private static HttpServer startFakeUserService() {
+  /** Fake downstream; the masterdata one echoes the identity headers it receives. */
+  private static HttpServer fake(String path, boolean echoHeaders) {
     try {
       HttpServer server = HttpServer.create(new InetSocketAddress("localhost", 0), 0);
       server.createContext(
-          "/internal/auth/verify",
+          path,
           ex -> {
-            String body = new String(ex.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
-            boolean ok = body.contains("\"secret\"");
-            byte[] out =
-                (ok ? "{\"userId\":7,\"loginId\":\"bob\",\"userType\":2}" : "").getBytes();
+            String id = ex.getRequestHeaders().getFirst("X-User-Id");
+            String role = ex.getRequestHeaders().getFirst("X-User-Role");
+            String body =
+                echoHeaders
+                    ? "{\"id\":\"" + id + "\",\"role\":\"" + role + "\"}"
+                    : "{\"token\":\"t\"}";
+            byte[] out = body.getBytes();
             ex.getResponseHeaders().add("Content-Type", "application/json");
-            ex.sendResponseHeaders(ok ? 200 : 401, ok ? out.length : -1);
-            if (ok) {
-              ex.getResponseBody().write(out);
-            }
+            ex.sendResponseHeaders(200, out.length);
+            ex.getResponseBody().write(out);
             ex.close();
           });
       server.start();
@@ -51,57 +64,125 @@ class EcomGatewayServiceApplicationTests {
 
   @DynamicPropertySource
   static void props(DynamicPropertyRegistry registry) {
-    String id = "spring.cloud.discovery.client.simple.instances.ecom-masterdata-service[0]";
     registry.add("spring.cloud.kubernetes.enabled", () -> "false");
-    registry.add(id + ".host", () -> "localhost");
-    registry.add(id + ".port", () -> USER_SERVICE.getAddress().getPort());
+    String auth = "spring.cloud.discovery.client.simple.instances.ecom-userauth-service[0]";
+    String md = "spring.cloud.discovery.client.simple.instances.ecom-masterdata-service[0]";
+    registry.add(auth + ".host", () -> "localhost");
+    registry.add(auth + ".port", () -> AUTH_SERVICE.getAddress().getPort());
+    registry.add(md + ".host", () -> "localhost");
+    registry.add(md + ".port", () -> MASTERDATA_SERVICE.getAddress().getPort());
   }
 
   @AfterAll
   static void stop() {
-    USER_SERVICE.stop(0);
+    AUTH_SERVICE.stop(0);
+    MASTERDATA_SERVICE.stop(0);
+  }
+
+  private static String token(String issuer, Instant expiresAt, String secret) {
+    NimbusJwtEncoder encoder =
+        new NimbusJwtEncoder(
+            new ImmutableSecret<>(
+                new SecretKeySpec(Base64.getDecoder().decode(secret), "HmacSHA256")));
+    JwtClaimsSet claims =
+        JwtClaimsSet.builder()
+            .issuer(issuer)
+            .subject("bob")
+            .issuedAt(expiresAt.minusSeconds(3600))
+            .expiresAt(expiresAt)
+            .claim("userId", 7L)
+            .claim("userType", 2)
+            .build();
+    return encoder
+        .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+        .getTokenValue();
+  }
+
+  private WebTestClient.ResponseSpec get(String bearer) {
+    WebTestClient.RequestHeadersSpec<?> req = client.get().uri("/api/user-info/loginId/bob");
+    return (bearer == null ? req : req.header("Authorization", "Bearer " + bearer)).exchange();
   }
 
   @Test
-  void protectedRouteRequiresToken() {
-    client.get().uri("/api/product").exchange().expectStatus().isUnauthorized();
-  }
-
-  @Test
-  void invalidCredentialsRejected() {
+  void loginRouteIsPublicAndReachesAuthService() {
     client
         .post()
-        .uri("/auth/login")
-        .bodyValue(Map.of("loginId", "bob", "password", "wrong"))
+        .uri("/api/auth/login")
+        .bodyValue("{}")
+        .header("Content-Type", "application/json")
         .exchange()
+        .expectStatus()
+        .isOk()
+        .expectBody()
+        .jsonPath("$.token")
+        .isEqualTo("t");
+  }
+
+  @Test
+  void masterdataRouteRequiresToken() {
+    get(null).expectStatus().isUnauthorized();
+  }
+
+  @Test
+  void validTokenReachesMasterdataWithUserHeaders() {
+    String token = token(ISSUER, Instant.now().plusSeconds(600), SECRET);
+    get(token)
+        .expectStatus()
+        .isOk()
+        .expectBody()
+        .jsonPath("$.id")
+        .isEqualTo("7")
+        .jsonPath("$.role")
+        .isEqualTo("CUSTOMER");
+  }
+
+  @Test
+  void clientSuppliedIdentityHeadersAreReplaced() {
+    String token = token(ISSUER, Instant.now().plusSeconds(600), SECRET);
+    client
+        .get()
+        .uri("/api/user-info/loginId/bob")
+        .header("Authorization", "Bearer " + token)
+        .header("X-User-Role", "ADMIN")
+        .exchange()
+        .expectBody()
+        .jsonPath("$.role")
+        .isEqualTo("CUSTOMER");
+  }
+
+  @Test
+  void expiredTokenRejected() {
+    get(token(ISSUER, Instant.now().minusSeconds(600), SECRET)).expectStatus().isUnauthorized();
+  }
+
+  @Test
+  void wrongIssuerRejected() {
+    get(token("someone-else", Instant.now().plusSeconds(600), SECRET))
         .expectStatus()
         .isUnauthorized();
   }
 
   @Test
-  void validLoginIssuesFifteenMinuteTokenAcceptedByGateway() {
-    Map<?, ?> res =
-        client
-            .post()
-            .uri("/auth/login")
-            .bodyValue(Map.of("loginId", "bob", "password", "secret"))
-            .exchange()
-            .expectStatus()
-            .isOk()
-            .expectBody(Map.class)
-            .returnResult()
-            .getResponseBody();
+  void wrongSignatureRejected() {
+    String other = Base64.getEncoder().encodeToString("another-secret-another-secret-123".getBytes());
+    get(token(ISSUER, Instant.now().plusSeconds(600), other)).expectStatus().isUnauthorized();
+  }
 
-    assertThat(res.get("expiresIn")).isEqualTo(900);
-    String token = (String) res.get("accessToken");
-
-    // Authenticated: passes security and reaches the (fake) downstream, which has no such route.
-    client
-        .get()
-        .uri("/api/product")
-        .header("Authorization", "Bearer " + token)
-        .exchange()
-        .expectStatus()
-        .value(s -> assertThat(s).isNotEqualTo(401));
+  @Test
+  void rolesMapAllTypes() {
+    assertThat(
+            com.enncompany.ecomgatewayservice.auth.Roles.of(
+                org.springframework.security.oauth2.jwt.Jwt.withTokenValue("t")
+                    .header("alg", "none")
+                    .claim("userType", 0)
+                    .build()))
+        .isEqualTo("ADMIN");
+    assertThat(
+            com.enncompany.ecomgatewayservice.auth.Roles.of(
+                org.springframework.security.oauth2.jwt.Jwt.withTokenValue("t")
+                    .header("alg", "none")
+                    .claim("userType", 9)
+                    .build()))
+        .isEqualTo("UNKNOWN");
   }
 }

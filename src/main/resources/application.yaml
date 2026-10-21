@@ -10,6 +10,12 @@ spring:
         webflux:
           routes:
             # lb:// resolves the logical service name via the Kubernetes service registry.
+            # More specific route first: login/validate are served by the auth service.
+            - id: ecom-userauth-service
+              uri: lb://ecom-userauth-service
+              predicates:
+                - Path=/api/auth/**
+            # Every other /api call is JWT-validated by the gateway (see SecurityConfig) before routing.
             - id: ecom-masterdata-service
               uri: lb://ecom-masterdata-service
               predicates:
@@ -20,12 +26,10 @@ spring:
 
 app:
   jwt:
-    # Must be provided (>= 32 bytes) via a Kubernetes Secret; never commit a real value.
+    # Same Base64 secret (>= 32 bytes) and issuer the auth service signs tokens with.
+    # Must be provided via a Kubernetes Secret; never commit a real value.
     secret: ${JWT_SECRET}
-    issuer: ecom-gateway-service
-    ttl: 15m
-  user-service:
-    url: http://ecom-masterdata-service
+    issuer: ecom-userauth-service
 
 management:
   endpoints:

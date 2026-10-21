@@ -35,8 +35,8 @@ public class UserContextHeaderFilter implements GlobalFilter, Ordered {
                       h.remove("X-User-Id");
                       h.remove("X-User-Role");
                       if (jwt != null) {
-                        h.set("X-User-Id", String.valueOf(jwt.getClaims().get("uid")));
-                        h.set("X-User-Role", jwt.getClaimAsString("role"));
+                        h.set("X-User-Id", String.valueOf(jwt.getClaims().get("userId")));
+                        h.set("X-User-Role", Roles.of(jwt));
                       }
                     }))
         .build();
