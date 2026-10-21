@@ -97,7 +97,7 @@ class EcomGatewayServiceApplicationTests {
   }
 
   private WebTestClient.ResponseSpec get(String bearer) {
-    WebTestClient.RequestHeadersSpec<?> req = client.get().uri("/api/user-info/loginId/bob");
+    WebTestClient.RequestHeadersSpec<?> req = client.get().uri("/api/products");
     return (bearer == null ? req : req.header("Authorization", "Bearer " + bearer)).exchange();
   }
 
@@ -132,6 +132,58 @@ class EcomGatewayServiceApplicationTests {
   }
 
   @Test
+  void userInfoCreateIsPublic() {
+    client
+        .post()
+        .uri("/api/user-info")
+        .header("Content-Type", "application/json")
+        .bodyValue("{}")
+        .exchange()
+        .expectStatus()
+        .isOk();
+  }
+
+  @Test
+  void userInfoUpdateRequiresToken() {
+    client
+        .put()
+        .uri("/api/user-info/1")
+        .header("Content-Type", "application/json")
+        .bodyValue("{}")
+        .exchange()
+        .expectStatus()
+        .isUnauthorized();
+  }
+
+  @Test
+  void userInfoUpdateWithTokenReachesAuthService() {
+    String token = token(ISSUER, Instant.now().plusSeconds(600), SECRET);
+    client
+        .put()
+        .uri("/api/user-info/1")
+        .header("Authorization", "Bearer " + token)
+        .header("Content-Type", "application/json")
+        .bodyValue("{}")
+        .exchange()
+        .expectStatus()
+        .isOk();
+  }
+
+  @Test
+  void otherUserInfoApisAreBlockedEvenWithToken() {
+    String token = token(ISSUER, Instant.now().plusSeconds(600), SECRET);
+    for (String uri : new String[] {"/api/user-info", "/api/user-info/1", "/api/user-info/loginId/bob"}) {
+      client
+          .get()
+          .uri(uri)
+          .header("Authorization", "Bearer " + token)
+          .exchange()
+          .expectStatus()
+          .isForbidden();
+    }
+  }
+
+  @Test
   void masterdataRouteRequiresToken() {
     get(null).expectStatus().isUnauthorized();
   }
@@ -154,7 +206,7 @@ class EcomGatewayServiceApplicationTests {
     String token = token(ISSUER, Instant.now().plusSeconds(600), SECRET);
     client
         .get()
-        .uri("/api/user-info/loginId/bob")
+        .uri("/api/products")
         .header("Authorization", "Bearer " + token)
         .header("X-User-Role", "ADMIN")
         .exchange()
@@ -184,6 +236,19 @@ class EcomGatewayServiceApplicationTests {
   @Test
   void swaggerUiIsPublic() {
     client.get().uri("/swagger-ui.html").exchange().expectStatus().is3xxRedirection();
+  }
+
+  @Test
+  void userauthApiDocsAreRoutedWithoutToken() {
+    client
+        .get()
+        .uri("/docs/userauth/api-docs")
+        .exchange()
+        .expectStatus()
+        .isOk()
+        .expectBody()
+        .jsonPath("$.token")
+        .exists();
   }
 
   @Test

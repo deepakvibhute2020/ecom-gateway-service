@@ -22,6 +22,12 @@ spring:
                 - Path=/docs/masterdata/api-docs
               filters:
                 - RewritePath=/docs/masterdata/api-docs, /api-docs
+            - id: ecom-userauth-api-docs
+              uri: lb://ecom-userauth-service
+              predicates:
+                - Path=/docs/userauth/api-docs
+              filters:
+                - RewritePath=/docs/userauth/api-docs, /api-docs
             # Every other /api call is JWT-validated by the gateway (see SecurityConfig) before routing.
             - id: ecom-masterdata-service
               uri: lb://ecom-masterdata-service
@@ -42,6 +48,8 @@ springdoc:
   # Each entry is a downstream service spec routed above.
   swagger-ui:
     urls:
+      - name: ecom-userauth-service
+        url: /docs/userauth/api-docs
       - name: ecom-masterdata-service
         url: /docs/masterdata/api-docs
     path: /swagger-ui.html

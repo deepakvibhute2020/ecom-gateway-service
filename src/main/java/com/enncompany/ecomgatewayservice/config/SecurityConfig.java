@@ -4,6 +4,7 @@ import com.enncompany.ecomgatewayservice.auth.Roles;
 import java.util.List;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -33,6 +34,12 @@ public class SecurityConfig {
                         "/v3/api-docs/**",
                         "/docs/**")
                     .permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/user-info")
+                    .permitAll()
+                    .pathMatchers(HttpMethod.PUT, "/api/user-info/*")
+                    .authenticated()
+                    .pathMatchers("/api/user-info", "/api/user-info/**")
+                    .denyAll()
                     .anyExchange()
                     .authenticated())
         .oauth2ResourceServer(
