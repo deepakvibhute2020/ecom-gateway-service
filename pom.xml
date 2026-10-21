@@ -168,7 +168,9 @@
                                     <tag>latest</tag>
                                 </tags>
                                 <auth>
+                                    <!--suppress UnresolvedMavenProperty -->
                                     <username>${env.DOCKERHUB_USERNAME}</username>
+                                    <!--suppress UnresolvedMavenProperty -->
                                     <password>${env.DOCKERHUB_PASSWORD}</password>
                                 </auth>
                             </to>

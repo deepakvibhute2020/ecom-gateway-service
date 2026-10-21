@@ -31,7 +31,7 @@ class EcomGatewayServiceApplicationTests {
 
   private static final String SECRET = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=";
   private static final String ISSUER = "ecom-userauth-service";
-  private static final HttpServer AUTH_SERVICE = fake("/api/auth", false);
+  private static final HttpServer AUTH_SERVICE = fake("/api", false);
   private static final HttpServer MASTERDATA_SERVICE = fake("/", true);
 
   @Autowired private WebTestClient client;
@@ -46,9 +46,7 @@ class EcomGatewayServiceApplicationTests {
             String id = ex.getRequestHeaders().getFirst("X-User-Id");
             String role = ex.getRequestHeaders().getFirst("X-User-Role");
             String body =
-                echoHeaders
-                    ? "{\"id\":\"" + id + "\",\"role\":\"" + role + "\"}"
-                    : "{\"token\":\"t\"}";
+                "{\"token\":\"t\",\"id\":\"" + id + "\",\"role\":\"" + role + "\"}";
             byte[] out = body.getBytes();
             ex.getResponseHeaders().add("Content-Type", "application/json");
             ex.sendResponseHeaders(200, out.length);
@@ -119,6 +117,21 @@ class EcomGatewayServiceApplicationTests {
   }
 
   @Test
+  void masterdataRouteWithTokenReachesMasterdata() {
+    String token = token(ISSUER, Instant.now().plusSeconds(600), SECRET);
+    client
+        .get()
+        .uri("/api/products")
+        .header("Authorization", "Bearer " + token)
+        .exchange()
+        .expectStatus()
+        .isOk()
+        .expectBody()
+        .jsonPath("$.id")
+        .isEqualTo("7");
+  }
+
+  @Test
   void masterdataRouteRequiresToken() {
     get(null).expectStatus().isUnauthorized();
   }
@@ -177,7 +190,7 @@ class EcomGatewayServiceApplicationTests {
   void masterdataApiDocsAreRoutedWithoutToken() {
     client
         .get()
-        .uri("/docs/masterdata/v3/api-docs")
+        .uri("/docs/masterdata/api-docs")
         .exchange()
         .expectStatus()
         .isOk()

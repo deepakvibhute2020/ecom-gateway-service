@@ -14,14 +14,14 @@ spring:
             - id: ecom-userauth-service
               uri: lb://ecom-userauth-service
               predicates:
-                - Path=/api/auth/**
+                - Path=/api/auth/**, /api/user-info/**
             # Serves masterdata's OpenAPI document so the gateway Swagger UI can list it (auth service is excluded).
             - id: ecom-masterdata-api-docs
               uri: lb://ecom-masterdata-service
               predicates:
-                - Path=/docs/masterdata/v3/api-docs
+                - Path=/docs/masterdata/api-docs
               filters:
-                - RewritePath=/docs/masterdata/v3/api-docs, /v3/api-docs
+                - RewritePath=/docs/masterdata/api-docs, /api-docs
             # Every other /api call is JWT-validated by the gateway (see SecurityConfig) before routing.
             - id: ecom-masterdata-service
               uri: lb://ecom-masterdata-service
@@ -43,7 +43,7 @@ springdoc:
   swagger-ui:
     urls:
       - name: ecom-masterdata-service
-        url: /docs/masterdata/v3/api-docs
+        url: /docs/masterdata/api-docs
     path: /swagger-ui.html
 
 management:
