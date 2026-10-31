@@ -28,7 +28,7 @@ jobs:
   notify:
     needs: build-job
     if: failure()
-    uses: deepakvibhute2020/ecom-cicd-comman/.github/workflows/email-notification.yml@main
+    uses: deepakvibhute2020/ecom-cicd-common/.github/workflows/email-notification.yml@main
     with:
       repository: ${{ github.repository }}
       branch: ${{ github.ref_name }}
