@@ -1,4 +1,4 @@
-name: Build
+name: Build ecom-gateway-service
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-job:
+    name: Build Job ecom-gateway-service
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -19,4 +20,20 @@ jobs:
           java-version: '25'
           cache: maven
       - name: Build with Maven
-        run: mvn clean install
+        run: |
+          mvn clean install
+          exit 1
+
+  # Send email notification when build fails
+  notify:
+    needs: build-job
+    if: failure()
+    uses: deepakvibhute2020/ecom-cicd-comman/.github/workflows/email-notification.yml@main
+    with:
+      repository: ${{ github.repository }}
+      branch: ${{ github.ref_name }}
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    secrets:
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      BUILD_NOTIFICATION_EMAILS: ${{ vars.BUILD_NOTIFICATION_EMAILS }}
