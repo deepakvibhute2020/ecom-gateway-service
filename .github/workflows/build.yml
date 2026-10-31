@@ -25,15 +25,17 @@ jobs:
           exit 1
 
   # Send email notification when build fails
-  notify:
-    needs: build-job
-    if: failure()
-    uses: deepakvibhute2020/ecom-cicd-common/.github/workflows/email-notification.yml@main
-    with:
-      repository: ${{ github.repository }}
-      branch: ${{ github.ref_name }}
-      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-    secrets:
-      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
-      BUILD_NOTIFICATION_EMAILS: ${{ vars.BUILD_NOTIFICATION_EMAILS }}
+      - name: Trigger Centralized Email Notification
+        if: failure()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.CICD_COMMON_TOKEN }}
+          repository: deepakvibhute2020/ecom-cicd-common
+          event-type: build-failure
+          client-payload: |
+            {
+              "repository": "${{ github.repository }}",
+              "branch": "${{ github.ref_name }}",
+              "workflow": "${{ github.workflow }}",
+              "run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
